@@ -1,0 +1,31 @@
+#!/usr/bin/perl -w
+use strict;
+
+# parse output from GeoMeTree
+# which gives the 'geodesic' path 
+# between two trees in terms of the set
+# of splits (and associated weights aka branch lengths)
+# along the path.
+# first we need to get all the splits (specified in some consistent way)
+# and their names.
+
+my %id_dummytax = ();
+while(<>){
+
+# get dummy taxa:
+  if(/dummy taxa/){
+    while(1){
+      my $line = <>;
+      if($line =~ /^\s*(\S+)\s+(\S+)/){
+	$id_dummytax{$1} = $2;
+      }else{
+	last;
+      }
+    }
+  }
+}
+
+sub get_splits{
+my $name_split = shift;
+while(<>){
+  if(/^ \s* (\d+ [/] \d+) \s+ (\S+) \s+ ([0-9.]+) \s+ ([0-9.]+) \s* $/x  
