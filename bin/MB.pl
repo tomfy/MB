@@ -29,11 +29,15 @@ use CXGN::Phylo::Mrbayes; # perl module encapsulating mrbayes bayesian phylogeny
 my $input_file = undef;
 my $seed = srand();
 my $nongap_fraction = 0.8;
-my $chunk_size = 200;
+my $chunk_size = 2000;
+my $print_freq = 500;
 my $n_temperatures = 3;
+my $n_temperatures_out = undef; # $n_temperatures;
 my $delta_temperature = 0.1;
+my $T_ratio = undef; # not used yet.
+my $user_def_temperatures = undef; # not used yet.
 my $sample_freq = 20;
-my $n_runs = 3;
+my $n_runs = 2;
 my $burnin_fraction = 0.1;
 my $converged_chunks_required = 10;
 my $modelparam_min_ok_ESS = 200;
@@ -41,7 +45,7 @@ my $append = 'yes';
 my $max_gens = 1000000;
 my $min_chunk_size = 100; # mb doesn't allow anything less
 my $use_mpi = undef;
-my $max_processors = 1; 
+my $max_processors = 1;
 my $mb_name = 'mb';
 my $max_ok_L1 = 0.1;
 
@@ -51,14 +55,18 @@ GetOptions('input_file=s' => \$input_file,  # fasta alignment file
 	   'seed=i' => \$seed,
 	   'nongap_fraction=f' => \$nongap_fraction,
 	   'chunk_size=i' => \$chunk_size,
-	   'n_temperatures=i' => \$n_temperatures,
-	   'delta_temperature=f' => \$delta_temperature,
+           'print_every=i' => \$print_freq,
+	   'nTs=i' => \$n_temperatures,
+           'nTs_out=i' => \$n_temperatures_out,
+	   'delta_temperature=s' => \$delta_temperature,
+           'T_ratio=f' => \$T_ratio,
+	   'user_def_temps=s' => \$user_def_temperatures,
 	   'sample_freq=i' => \$sample_freq,
 	   'n_runs=i' => \$n_runs,
 	   'burn-in_fraction=f' => \$burnin_fraction,
 	   'converged_chunks_required=i' => \$converged_chunks_required,
 	   'ESS_min=i' => \$modelparam_min_ok_ESS,
-	  'append=s' => \$append, 
+	  'append=s' => \$append,
 	  'max_gens=i' => \$max_gens,
 	  'reproducible=i' => \$reproducible,
 	   'use_mpi=i' => \$use_mpi,
@@ -70,6 +78,8 @@ if($chunk_size < $min_chunk_size){
 warn "Resetting chunk size form $chunk_size to $min_chunk_size (min allowed by MrBayes)\n";
 $chunk_size = $min_chunk_size;
 }
+$n_temperatures_out = $n_temperatures if(!defined $n_temperatures_out); # default is output all temperatures
+
 print "Seed: $seed\n";
 print "chunksize: $chunk_size \n";
 print "nongapfrac: $nongap_fraction\n";
@@ -99,6 +109,7 @@ $align_string =~ s/^>(\s*)([^a-zA-Z])/>$1$fixprefix$2/xmsg; # to make clearcut h
 # construct an overlap object.
 # my $bootstrap_seed = 1234567;	# ($opt_S)? $opt_S : undef;
 #my $nongap_fraction = ($opt_f)? $opt_f : 0.8;
+# print "$align_string \n";
 my $overlap_obj = CXGN::Phylo::Overlap->new($align_string, $nongap_fraction); # , $bootstrap_seed);
 
 # construct MrBayes object and run
@@ -133,13 +144,16 @@ print "Seed, swapseed: $seed  $swapseed \n"; #sleep(1);
 my $mrb_obj = CXGN::Phylo::Mrbayes->new(
 			   {'alignment_nex_filename' =>$alignment_nex_filename,
 			    'chunk_size' => $chunk_size,
+                            'print_freq' => $print_freq,
 			    'seed' => $seed,
 			    'swapseed' => $swapseed,
 			    #	   'fixed_pinvar' => 0.4
 			    'sample_freq' => $sample_freq,
 			    'modelparam_min_ok_ESS' => $modelparam_min_ok_ESS,
 			    'n_temperatures' => $n_temperatures,
+                            'n_temperatures_out' => $n_temperatures_out,
 			    'delta_temperature' => $delta_temperature,
+       #		    'user_defined_temperatures' => $user_def_temperatures,
 			    'n_swaps' => $n_swaps,
 			    'n_runs' => $n_runs,
 			    'burnin_fraction' => $burnin_fraction,
@@ -151,11 +165,10 @@ my $mrb_obj = CXGN::Phylo::Mrbayes->new(
 			    'use_mpi' => $use_mpi,
 			    'max_processors' => $max_processors,
 			    'mb_name' => $mb_name,
-			            'modelparam_min_ok_ESS'     => 2000,
+			    'modelparam_min_ok_ESS'     => 2000,
         'modelparam_max_ok_KSD' => 0.2,
         'max_ok_L1'             => $max_ok_L1,  #    0.01,
 
-			    
 #			    'temperature_factor' => 1.414, # I wanted to have T's exponentially spaced, but mb does not allow
 			   }
 			  );

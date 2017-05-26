@@ -3,6 +3,17 @@ use strict;
 
 my @nexus_files = `ls *.nexus`;
 
+if(scalar @nexus_files == 0){
+my @run1t_files = `ls *.run1.t`;
+for(@run1t_files){
+	s/[.]run1[.]t\s*$//; 
+	push @nexus_files, $_;
+}
+}
+
+print join("\n", @nexus_files), "\n";
+# exit;
+
 for my $nexus_file (@nexus_files) {
   chomp $nexus_file;
 
@@ -12,6 +23,8 @@ next if($psrf_output =~ /(Only one |No )run[*][.][tp]/);
 
 
   my $topolyzer_output = `topolyzer.pl $nexus_file 2> /dev/null `;
+print $topolyzer_output, "\n";
+exit;
 next if($topolyzer_output =~ /(Only one |No )run[*][.][tp]/);
   my @topo_lines = split("\n", $topolyzer_output);
   my $topo_max_tvd = -1;

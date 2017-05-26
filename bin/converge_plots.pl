@@ -1,6 +1,7 @@
 #!/usr/bin/perl -w
 use strict;
-use lib '/usr/share/perl/5.14.2/';
+use lib '/usr/local/share/perl/5.14.2';
+#use lib '/usr/locate/lib/perl/5.14.2/auto';
 use Graphics::GnuplotIF qw(GnuplotIF);
 my $base_filename = shift; # e.g. famX  if files famX.fasta famX.converge, etc.
 my $plots_to_do_bitpattern = shift;
@@ -217,7 +218,7 @@ my $cs = 7;
     $plot1->gnuplot_cmd(" set origin 0.0,$scale ");
     $plot1->gnuplot_set_plot_titles( 'min L1', 'q1 L1', 'median L1', 'q3 L1', 'max L1', 'ic L1',
 				     'min mbd', 'q1 mbd', 'median mbd', 'q3 mbd', 'max mbd', 'ic mbd' );
-    $plot1>gnuplot_plot_xy( $gens, #$topo_L1s, $topo_max_diff, 
+    $plot1->gnuplot_plot_xy( $gens, #$topo_L1s, $topo_max_diff, 
 			     # $splits_avg_stddevs,  
 			     $splt_min_L1, $splt_q1_L1, $splt_median_L1, $splt_q3_L1, $splt_max_L1, $splt_avg_intercluster_L1);
 	#		     $splt_min_mbd, $splt_q1_mbd, $splt_median_mbd, $splt_q3_mbd, $splt_max_mbd, $split_avg_intercluster_mbd);
@@ -308,7 +309,7 @@ print STDERR "ZZZ plot to do bitpattern: [$plots_to_do_bitpattern] \n";
       $histo_command .= ' "" ' . ' using ' . ($i_run+1) . ' t"run ' . $i_run .'", ';
     }
     $histo_command .= ' "" using ($' . ($n_runs+2) . "/$n_runs" . ') t"average" ';
-    print $histo_command, "\n";
+    print "splits histogram command: ", $histo_command, "\n";
     $plot2a->gnuplot_cmd( $histo_command );
 
     $plots_to_do_bitpattern ^= $splits_histograms_bp; # 
