@@ -14,7 +14,10 @@ my $n_temps;
 my $got_nruns = 0;
 my $got_ntaxa = 0;
 
-open my $fh0, "<","first_chunk.stdout";
+my $fh0;
+if(! open $fh0, "<","first_chunk.stdout"){
+open $fh0, "<", "chunk_1.stdout";
+}
 while (<$fh0>) {
   $n_temps = $1 if(/Setting number of chains to (\d+)/);
   if (/Setting number of runs to (\d+)/) {

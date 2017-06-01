@@ -6,8 +6,9 @@ use Getopt::Long;
 use List::Util qw ( min max sum );
 
 #use lib '/home/tomfy/Orthologger/lib';
-use CXGN::Phylo::Overlap;
-use CXGN::Phylo::Mrbayes; # perl module encapsulating mrbayes bayesian phylogeny program.
+use lib '/home/tomfy/MB/lib';
+use Overlap;
+use Mrbayes; # perl module encapsulating mrbayes bayesian phylogeny program.
 
 #use Devel::Cycle; # for finding circular refs - cause of memory leaks.
 # find_cycle($test); # to find circular refs in $test (which might be an object, e.g.)
@@ -28,6 +29,7 @@ use CXGN::Phylo::Mrbayes; # perl module encapsulating mrbayes bayesian phylogeny
 # defaults:
 my $input_file = undef;
 my $seed = srand();
+my $swapseed = srand();
 my $nongap_fraction = 0.8;
 my $chunk_size = 2000;
 my $print_freq = 500;
@@ -53,6 +55,7 @@ my $reproducible = 0; # if true will give identical results each time run, BUT
 # the results will be INCORRECT (if multiple chunks). So use reproducible=true ONLY for testing.
 GetOptions('input_file=s' => \$input_file,  # fasta alignment file
 	   'seed=i' => \$seed,
+           'swapseed=i' => \$swapseed,
 	   'nongap_fraction=f' => \$nongap_fraction,
 	   'chunk_size=i' => \$chunk_size,
            'print_every=i' => \$print_freq,
@@ -110,11 +113,11 @@ $align_string =~ s/^>(\s*)([^a-zA-Z])/>$1$fixprefix$2/xmsg; # to make clearcut h
 # my $bootstrap_seed = 1234567;	# ($opt_S)? $opt_S : undef;
 #my $nongap_fraction = ($opt_f)? $opt_f : 0.8;
 # print "$align_string \n";
-my $overlap_obj = CXGN::Phylo::Overlap->new($align_string, $nongap_fraction); # , $bootstrap_seed);
+my $overlap_obj = Overlap->new($align_string, $nongap_fraction); # , $bootstrap_seed);
 
 # construct MrBayes object and run
 #my $seed = ($opt_S)? $opt_S : undef;
-my $swapseed = ($seed)? $seed + 1000 : undef;
+#my $swapseed = ($seed)? $seed + 1000 : undef;
 #my $n_temperatures = 4;
 my $n_swaps = ($n_temperatures > 2)? int ( ($n_temperatures-1) * $n_temperatures/2 / 2.1 ) : 1; # 1,2,3 T's -> 1, 4 T's ->2, 5 T's -> 4
 print "n_swaps (number of swap attempts per generation): $n_swaps \n";
@@ -141,7 +144,7 @@ close $fh1;
 
 print "Seed, swapseed: $seed  $swapseed \n"; #sleep(1);
 # print "reproducible: $reproducible \n";
-my $mrb_obj = CXGN::Phylo::Mrbayes->new(
+my $mrb_obj = Mrbayes->new(
 			   {'alignment_nex_filename' =>$alignment_nex_filename,
 			    'chunk_size' => $chunk_size,
                             'print_freq' => $print_freq,
