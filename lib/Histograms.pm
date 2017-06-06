@@ -39,11 +39,24 @@ sub new {
    return $self;
 }
 
-
-
 sub get_total_counts {
    my $self = shift;
    return $self->{total_in_histograms};
+}
+
+sub get_histogram_counts {
+   my $self = shift;
+   my $hists = $self->{histograms};
+   my $string = '';
+   my $total = 0;
+   while (my($hid, $cc) = each %$hists) {
+      my $hist_sum = sum(values %$cc);
+      $total += $hist_sum;
+      $string .= "$hid: $hist_sum;  " . join(";", values %$cc) . "\n";
+   }
+   
+   $string .= "xtotal: " . $self->{total_in_histograms} . "  $total";
+   return $string;
 }
 
 sub set_min_max_bins {
@@ -58,6 +71,7 @@ sub adjust_cat_count {
    my $category    = shift;
    my $increment   = shift;
    $increment = 1 if ( !defined $increment );
+#   print "in adjust cat count. $hist_id $category $increment.\n";
    $self->{histograms}->{$hist_id} = {} if(!exists $self->{histograms}->{$hist_id});
    $self->{histograms}->{$hist_id}->{$category} += $increment;
    $self->{sum_histogram}->{$category}              += $increment;
@@ -84,7 +98,6 @@ sub title {
 }
 
 sub histogram_string {
-
    # argument: hashref, keys: category labels; values: array ref holding weights for the histograms
    # (e.g. for different mcmc runs)
    # Output: 1st col: category labels, next n_histograms cols: weights, last col sum of weights over histograms.
@@ -94,19 +107,26 @@ sub histogram_string {
    my $max_lines_to_print = shift || 1000000; #
    my $histogram_cat_weight = $self->{histograms};
    my $sum_cat_weight       = $self->{sum_histogram};
-   my $min_bins_to_show = 15;
-   my $min_count_to_show = 4;   #scalar @$histogram_cat_weight;
+   my $min_bins_to_show = 50;
+   my $min_count_to_show = 0;   #scalar @$histogram_cat_weight;
 
    my $extra_bit         = '';
    my @sorted_categories = keys %$sum_cat_weight;
    my @sorted_histids = sort keys %{$histogram_cat_weight};
+#   print "QWERTYU: ", $self->{title}, "  ", join(";", @sorted_histids), "\n";
    my $total_weight = sum( values %$sum_cat_weight );
    if ( $sorting eq 'by_bin_number' ) {
       @sorted_categories =
         sort { $a <=> $b } @sorted_categories; # keys %$sum_cat_weight;
    } else {                     # sort by avg bin count.
       @sorted_categories =
-        sort { $sum_cat_weight->{$b} <=> $sum_cat_weight->{$a} }
+        sort { 
+           if ($sum_cat_weight->{$b} ==  $sum_cat_weight->{$a}) {
+              return ($a <=> $b);
+           } else {
+              return ($sum_cat_weight->{$b} <=> $sum_cat_weight->{$a});
+           }
+        }
           @sorted_categories;   # keys %$sum_cat_weight;
       while ( scalar @sorted_categories > $min_bins_to_show ) { # remove low-count categories, but leave at least $min_bins_to_show categories
          my $the_cat = $sorted_categories[-1];
@@ -135,7 +155,7 @@ sub histogram_string {
       $string .= " categories: $total_categories.\n";
    }
    $string .= (defined $self->{bin_width})? "# bin low edge " : "# bin id  ";
-   $string .= join(" ", map(sprintf(" %6d", $_),  @sorted_histids)) . "     sum\n";
+   $string .= join(" ", map(sprintf(" %6s", $_),  @sorted_histids)) . "     sum\n";
    $string .= "#-----------------------------------------------------\n";
 
    my ( $total, $shown_total ) = ( 0, 0 );
@@ -152,10 +172,10 @@ sub histogram_string {
       for my $histid (@sorted_histids) {
          my $c_w = $histogram_cat_weight->{$histid};
          my $the_weight = (exists $c_w->{$cat})? $c_w->{$cat} : 0; 
-         $line_string .= sprintf( "%6i  ", $the_weight );
+         $line_string .= sprintf( "%8.0f ", $the_weight );
          $iii++;
       }
-      $line_string .= sprintf( "%6i \n", $sum_weight );
+      $line_string .= sprintf( "%8.0f \n", $sum_weight );
       $count++;
 
       if ( $count > $max_lines_to_print ) {
@@ -166,7 +186,7 @@ sub histogram_string {
          $shown_total += $sum_weight;
       }
    }
-   $string .= "#  total  $total ($shown_total shown).\n";
+   $string .= sprintf("#  total  %10.0g  (%10.0g shown).\n", $total, $shown_total);
    $string .= "#  in " . $total_categories . " categories. $extra_bit \n";
    return $string;
 }
@@ -205,16 +225,17 @@ sub _total_variation_distance{
    my $bins = shift;            # array ref to bins in sum_histograms
    my $histogram1 = shift;      # hashref. bin-count pairs
    my $histogram2 = shift;      # hashref. bin-count pairs
+   my $sum1 = sum(values %$histogram1);
+   my $sum2 = sum(values %$histogram2);
 
-   my ($sum1, $sum2, $sum_abs_diff) = (0, 0, 0);
+   my $sum_abs_diff = 0;
    for my $bin (@$bins) {
       my $count1 = $histogram1->{$bin} || 0;
       my $count2 = $histogram2->{$bin} || 0;
-      $sum1 += $count1; $sum2 += $count2;
-      $sum_abs_diff += abs($count1 - $count2);
+      $sum_abs_diff += abs($count1/$sum1 - $count2/$sum2);
    }
-   warn "_total_variation_distance. sum1 sum2 should be same in _total_variation_distance: $sum1 $sum2 \n" if($sum1 != $sum2);
-   return $sum_abs_diff/(2*$sum1);
+ #  warn "_total_variation_distance. sum1 sum2 should be same in _total_variation_distance: $sum1 $sum2 \n" if($sum1 != $sum2);
+   return 0.5*$sum_abs_diff;
 }
 
 sub _Ln_distance{
@@ -222,21 +243,22 @@ sub _Ln_distance{
    my $bins = shift;            # array ref to bins in sum_histograms
    my $histogram1 = shift;      # hashref. bin-count pairs
    my $histogram2 = shift;      # hashref. bin-count pairs
-
+   my $sum1 = sum(values %$histogram1);
+   my $sum2 = sum(values %$histogram2);
    my $n = shift || 2;
-   my $n_set = $self->{set_size};
+#   my $n_set = $self->{set_size};
    my $n_histograms = scalar keys %{$self->{histograms}};
-   my $n_sample = $self->get_total_counts() / ($n_set * $n_histograms);
-   my ($sum1, $sum2, $sum_abs_freq_diff_to_n) = (0, 0, 0);
+ #  my $n_sample = $self->get_total_counts() / ($n_set * $n_histograms);
+   my $sum_abs_freq_diff_to_n = 0;
    for my $bin (@$bins) {
       my $count1 = $histogram1->{$bin} || 0;
       my $count2 = $histogram2->{$bin} || 0;
-      $sum1 += $count1; $sum2 += $count2;
-      $sum_abs_freq_diff_to_n += (abs($count1 - $count2) / $n_sample)**$n;
+    #  $sum1 += $count1; $sum2 += $count2;
+      $sum_abs_freq_diff_to_n += (abs($count1/$sum1 - $count2/$sum2))**$n;
    }
-   warn "_Ln_distance. sum1 sum2 should be same in Ln_distance: $sum1 $sum2 $n_sample \n" if($sum1 != $n_sample*$n_set  or $sum2 != $n_sample*$n_set);
+#   warn "_Ln_distance. sum1 sum2 should be same in Ln_distance: $sum1 $sum2 $n_sample \n" if($sum1 != $n_sample*$n_set  or $sum2 != $n_sample*$n_set);
 
-   my $result = 0.5*(($sum_abs_freq_diff_to_n)/$n_set)**(1.0/$n);
+   my $result = (0.5*$sum_abs_freq_diff_to_n)**(1.0/$n);
    return $result;
 }
 
@@ -245,19 +267,21 @@ sub _Linfinity_distance{
    my $bins = shift;            # array ref to bins in sum_histograms
    my $histogram1 = shift;      # hashref. bin-count pairs
    my $histogram2 = shift;      # hashref. bin-count pairs
-   my $n_set = $self->{set_size};
+  my $sum1 = sum(values %$histogram1);
+   my $sum2 = sum(values %$histogram2);
+ #  my $n_set = $self->{set_size};
    my $n_histograms = scalar keys %{$self->{histograms}};
-   my $n_sample = $self->get_total_counts() / ($n_set * $n_histograms);
-   my ($sum1, $sum2, $max_abs_weight_diff) = (0, 0, 0);
+ #  my $n_sample = $self->get_total_counts() / ($n_set * $n_histograms);
+   my $max_abs_weight_diff = 0;
    for my $bin (@$bins) {
       my $count1 = $histogram1->{$bin} || 0;
       my $count2 = $histogram2->{$bin} || 0;
-      $sum1 += $count1; $sum2 += $count2;
-      $max_abs_weight_diff = max( abs($count1 - $count2), $max_abs_weight_diff );
+   #   $sum1 += $count1; $sum2 += $count2;
+      $max_abs_weight_diff = max( abs($count1/$sum1 - $count2/$sum2), $max_abs_weight_diff );
    }
-   warn "_Linfinity_distance. sum1 sum2 should be same in Ln_distance: $sum1 $sum2 $n_sample \n" if($sum1 != $n_sample*$n_set  or $sum2 != $n_sample*$n_set);
+ #  warn "_Linfinity_distance. sum1 sum2 should be same in Ln_distance: $sum1 $sum2 $n_sample \n" if($sum1 != $n_sample*$n_set  or $sum2 != $n_sample*$n_set);
 
-   my $result = 0.5*$max_abs_weight_diff/$n_sample;
+   my $result = 0.5*$max_abs_weight_diff;
    return $result;
 }
 
@@ -569,13 +593,15 @@ sub avg_L1_distance { # just find for histograms as given, no rebinning.
          next if(sum(@weights) <= 0);
 
          my ($mean, $variance) = mean_variance(\@weights);
-         my $binomial_bin_variance = $mean*(1 - $mean/$max_in_category); # variance of binomial distribution with mean $mean
+         my $binomial_bin_variance = max(0.0, $mean*(1 - $mean/$max_in_category)); # variance of binomial distribution with mean $mean
+         
          my $this_label_range = (max(@weights) - min(@weights)) / $max_in_category;
          $sum_ranges += $this_label_range;
          $sumsq_ranges += $this_label_range**2;
          $src++;
          $label_range{$label} = $this_label_range;
 
+         print "variance: $variance  max in category: $max_in_category  mean: $mean .\n";
          my ($obs_bin_stddev, $binomial_bin_stddev) = (sqrt($variance)/$max_in_category, sqrt($binomial_bin_variance/$max_in_category));
          # $sumw_bsos{sum(@weights)} = [$binomial_bin_stddev, $obs_bin_stddev];
          for ( @thresholds ) {
@@ -785,12 +811,12 @@ use base qw/ Histograms /;
 sub new {
    my $class = shift;
    my $self  = $class->SUPER::new(@_);
-                           $self->{n_bins} //= 24;
+   $self->{n_bins} //= 24;
    $self->{binning_lo_val} //= 0.0;
    $self->{bin_width} //= 0.5;
    # warn "BinnedHistogram constructed with undefined binning parameters.\n"
    #  if(!defined $self->{binning_lo_val} or !defined $self->{bin_width});
- print "in BinnedHistograms constructor: ", $self->{n_bins}, "  ", $self->{binning_lo_val}, "  ", $self->{bin_width}, "\n";
+   print "in BinnedHistograms constructor: ", $self->{n_bins}, "  ", $self->{binning_lo_val}, "  ", $self->{bin_width}, "\n";
    return $self;
 }
 
@@ -798,10 +824,11 @@ sub binning_info_string {
    my $self   = shift;
    my $string = '';
    $string .=
-     "Binning low value: " 
-       . $self->{binning_lo_val} // 'undef'
-         . ". Bin width: "
-           . $self->{bin_width} // 'undef' . " \n";
+     "N bins: " . $self->{n_bins} // 'undef'
+       . "Binning low value: " 
+         . $self->{binning_lo_val} // 'undef'
+           . ". Bin width: "
+             . $self->{bin_width} // 'undef' . " \n";
    return $string;
 }
 
@@ -822,19 +849,19 @@ sub adjust_val_count {
 sub bin_the_point {
    my $self  = shift;
    my $value = shift;
-print "top of bin the point.\n";
-print "n bins: " , $self->{n_bins} // 'undef', "  ";
-print "low val: ", $self->{binning_lo_val} // 'undef', "  ";
-print "bin width: ", $self->{bin_width} // 'undef', "  ";
+   # print "top of bin the point.\n";
+   # print "n bins: " , $self->{n_bins} // 'undef', "  ";
+   # print "low val: ", $self->{binning_lo_val} // 'undef', "  ";
+   # print "bin width: ", $self->{bin_width} // 'undef', "  ";
    die "In bin_the_point. n_bins, binning_lo_val or bin_width not defined. \n"
      if ( !defined $self->{n_bins}
           or !defined $self->{binning_lo_val}
           or !defined $self->{bin_width} );
    my $bin = int( ( $value - $self->{binning_lo_val} ) / $self->{bin_width} );
    
-   $bin = max( $bin, 0 ); # bin 0 is 'underflow'
+   $bin = max( $bin, 0 );                   # bin 0 is 'underflow'
    $bin = min( $bin, $self->{n_bins} - 1 ); # bin n_bins-1 is 'overflow'
-   print " bin: $bin \n";
+ #  print " bin: $bin \n";
    $self->{min_bin} = min( $bin, $self->{min_bin} );
    $self->{max_bin} = max( $bin, $self->{max_bin} );
    return $bin;
