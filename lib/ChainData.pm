@@ -62,80 +62,100 @@ sub  new {
 sub size_info{
    my $self = shift;
    my $string = "parameter: " . $self->{parameter_name} . "\n";
+   my $total_counts = 0;
    while (my($setid, $gv) = each %{$self->{setid_gen_value}}) {
-      $string .= "setid, n points:  $setid  " . join(",", sort {$a<=>$b} keys %$gv) . "\n";
+      my @gens = sort {$a<=>$b} keys %$gv;
+      $total_counts += scalar @gens;
+      $string .= "setid, n points:  $setid  " . scalar @gens . "  " . join(",", @gens) . "\n";
    }
-   $string .= "total histogram counts: " . $self->{histograms}->get_total_counts() . "\n";
+   $string .= "total histogram counts: " . $self->{histograms}->get_histogram_counts() . "  $total_counts.\n";
    return $string;
 }
 
 
 sub store_data_point{		# store a new data point
    # can be single number, or string of ';' separated numbers: '345;277;921'
+# optionally followed by : and a weight. e.g.  234;55;9093:0.4556
+# which means each of the 3 numbers 234, 55, and 9093 is to be stored with weight 0.4556
+# this is used with splits; for each state there is a weight, and a tree topology or equivalently
+# a set of splits, each of which gets the same weight.
    my $self = shift;
-   my ($setid, $gen, $val) = @_;
-my $weight = 1;
-   if($val =~ /(\S+)[:](\S+)/){ # get weight if present (else weight is 1)
-      $val = $1;
-      $weight = $2;
-   }
-#    print "$setid $gen $val $weight.\n";  
+   my ($setid, $gen, $value) = @_;
+   my ($val, $weight) = ($value =~ /(\S+)[:](\S+)/)? ($1, $2) : ($value, 1);
+   # if ($val =~ /(\S+)[:](\S+)/) { # get weight if present (else weight is 1)
+   #    $val = $1;
+   #    $weight = $2;
+   # }
+   #    print "$setid $gen $val $weight.\n";  
    $self->{max_gen} = max($gen, $self->{max_gen});
    $self->{setid_gen_value}->{$setid} = {} if(!exists $self->{setid_gen_value}->{$setid});
-   $self->{setid_gen_value}->{$setid}->{$gen} = $val;
+   $self->{setid_gen_value}->{$setid}->{$gen} = $value; # store a value which includes weight
    for my $v (split(";", $val)) {
+   #   my ($v,$weight) = ($vw =~ /(\S+)[:](\S+)/)? ($1, $2) : ($vw, 1);
       if (!($self->{binnable})) {
          $self->{histograms}->adjust_val_count($setid, $v, $weight);
       } elsif (defined $self->{histograms}->{binning_lo_val}) {
          $self->{histograms}->adjust_val_count($setid, $v, $weight);
-      } else { # else its binnable, but binning params not set yet; don't adjust val
+      } else { # else it's binnable, but binning params not set yet; don't adjust val
       }
    }
+#   print "new total histogram counts after storing data point:\n", $self->{parameter_name}, "   setid  $setid   ", $self->{histograms}->get_histogram_counts(), "\n";
+#   print $self->size_info();
 }
 
 sub delete_data_point{
    # if argument is e.g. '1;2;5', splits on ';' and deletes
    # 1, 2 and 5 from histogram. (useful with splits)
+   # as with store_data_point, can have weight
    my $self = shift;
    my ($setid, $gen) = @_;
    my $value = $self->{setid_gen_value}->{$setid}->{$gen};
-my $weight = 1;
-   if($value =~ /(\S+)[:](\S+)/){
-      $value = $1;
-      $weight = $2;
-   }
-
+my ($val, $weight) = ($value =~ /(\S+)[:](\S+)/)? ($1, $2) : ($value, 1);
+   # my $weight = 1;
+   #    if($value =~ /(\S+)[:](\S+)/){
+   #       $value = $1;
+   #       $weight = $2;
+   #    }
+#   print "In delete_data_point. setid, gen to delete: $setid, $gen.\n";
    delete $self->{setid_gen_value}->{$setid}->{$gen};
-   for my $v (split(";", $value)) {
-      print "before adjust_val_count.\n";
+   for my $v (split(";", $val)) {
+   #   my ($v,$weight) = ($vw =~ /(\S+)[:](\S+)/)? ($1, $2) : ($vw, 1);
+#      print "before adjust_val_count.\n";
       $self->{histograms}->adjust_val_count($setid, $v, -1 * $weight);
    }
+#   print "new total histogram counts after deleteing data point:\n", $self->{parameter_name}, "   setid  $setid   \n", $self->{histograms}->get_histogram_counts(), "\n";
+#   print $self->size_info();
 }
 
 sub delete_low_gens{
    my $self = shift;
    my $max_gen_to_delete = shift;
    my $delta_gen = $self->{gen_spacing};
-   for my $setid (keys %{$self->{setid_gen_value}}) {
-      #print "setid: $setid\n";
-      for (my $g = $max_gen_to_delete; 1; $g -= $delta_gen) {
+   # for my $setid (keys %{$self->{setid_gen_value}}) {
+   while (my($setid, $gv) = each %{$self->{setid_gen_value}}) {
+   #   print "setid: $setid  maxgentodelete: $max_gen_to_delete.  ", join(" ", sort {$a<=>$b} keys %$gv), "\n";
+      for (my $g = $max_gen_to_delete; $g >= 0; $g -= $delta_gen) {
+       #  print "XYZ:  $g $max_gen_to_delete; ", ;
          if (exists $self->{setid_gen_value}->{$setid}->{$g}) {
             my $value =  $self->{setid_gen_value}->{$setid}->{$g};
-            print "before delete_data_point.\n";
+          #  print "before delete_data_point.\n";
             $self->delete_data_point($setid, $g);
          } else {
-            last;
+            next;
          }
       }
+   #   print "\n";
    }
 }
 
 sub delete_pre_burn_in{
    my $self = shift;
    my $max_pre_burn_in_gen = int($self->{max_gen}*$self->{burn_in_fraction});
-   print "In delete_pre_burn_in; max_pre_burn_in_gen: $max_pre_burn_in_gen \n";
+ #  print "In delete_pre_burn_in; ", $self->{max_gen}, "  ", $self->{burn_in_fraction}, "  max_pre_burn_in_gen: $max_pre_burn_in_gen \n";
+ #  print "QQQQQQ:", $self->size_info(), "\n";
    $max_pre_burn_in_gen = $self->{gen_spacing}*int($max_pre_burn_in_gen/$self->{gen_spacing});
    $self->delete_low_gens($max_pre_burn_in_gen);
+  # print "RRRRRR: ", $self->size_info(), "\n";
 }
 
 sub get_set_data{ # returns hashref with generation/parameter value pairs
@@ -173,7 +193,7 @@ sub get_binning_parameters{
       @values = (@values, values %$g_v);
    }
    @values = sort {$a <=> $b} @values;
-print "in get binning params: \n"; # , join(" ", @values), "\n";
+ #  print "in get binning params: \n"; # , join(" ", @values), "\n";
    my $size = scalar @values;
    my ($lo_val, $hi_val) = ($values[int($tail_p*$size)], $values[int((1 - $tail_p)*$size)]);
    my $central_range = $hi_val - $lo_val;
@@ -202,10 +222,10 @@ sub bin_the_data{
    my $tail_p = shift || 0.05;
    my $tail_d = shift || 0.3;
    my ($lo_val, $bin_width) = $self->get_binning_parameters($n_bins, $tail_p, $tail_d);
-   print "In bin_the_data. n bins, lo val, bin width:  $n_bins  $lo_val  $bin_width \n";
+ #  print "In bin_the_data. n bins, lo val, bin width:  $n_bins  $lo_val  $bin_width \n";
    my $the_histograms =  $self->{histograms} = 
      BinnedHistograms->new({title => $self->{parameter_name}, n_bins => $n_bins, 
-                                         binning_lo_val => $lo_val, bin_width => $bin_width});
+                            binning_lo_val => $lo_val, bin_width => $bin_width});
    my ($min_bin, $max_bin) = ($n_bins, 0);
    my %sgv = %{$self->{setid_gen_value}};
    for my $setid (keys %sgv) {
