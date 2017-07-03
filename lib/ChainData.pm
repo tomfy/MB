@@ -9,7 +9,6 @@ use Histograms;
 # generations list, and pre-burn-in gen range and post-burn-in range
 # array of gen/value hashrefs, one for each run
 
-#
 # max_gen     largest generation number so far
 # generations  not used ???
 # run_gen_value   $self->{run_gen_value}->[$run]->{$gen} is the value (numerical param, or topology, ...)
@@ -17,7 +16,6 @@ use Histograms;
 # n_runs
 # binnable
 # histograms
-#
 #
 
 sub  new {
@@ -82,11 +80,7 @@ sub store_data_point{		# store a new data point
    my $self = shift;
    my ($setid, $gen, $value) = @_;
    my ($val, $weight) = ($value =~ /(\S+)[:](\S+)/)? ($1, $2) : ($value, 1);
-   # if ($val =~ /(\S+)[:](\S+)/) { # get weight if present (else weight is 1)
-   #    $val = $1;
-   #    $weight = $2;
-   # }
-   #    print "$setid $gen $val $weight.\n";  
+
    $self->{max_gen} = max($gen, $self->{max_gen});
    $self->{setid_gen_value}->{$setid} = {} if(!exists $self->{setid_gen_value}->{$setid});
    $self->{setid_gen_value}->{$setid}->{$gen} = $value; # store a value which includes weight

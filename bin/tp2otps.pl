@@ -7,6 +7,9 @@ use File::Spec qw ( splitpath );
 use lib '/home/tomfy/MB/lib';
 use Mrbayes; # perl module encapsulating mrbayes bayesian phylogeny program.
 
+# read in a tp file, order the newicks and get the splits,
+# then output these (in a more compact form if -format short  option used.)
+
 my %newick_number = ();
 my %number_newick = ();
 
