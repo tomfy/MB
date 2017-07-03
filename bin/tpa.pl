@@ -161,7 +161,7 @@ for my $aline (@$all_lines) {
    } else {
       die "unknown format.\n";
    }
-   print $fhxxx join(' ', @cols[0..8]), "    ", $newick, "    ", $the_splits, "\n";
+   #print $fhxxx join(' ', @cols[0..8]), "    ", $newick, "    ", $the_splits, "\n";
 
    $i_T %= $n_temperatures;
 
@@ -235,15 +235,11 @@ for my $aline (@$all_lines) {
          printf("%3d %7.5f  ", $it, $d1);
       }
       print "  ";
- while (my ($it, $d1) = each @$w_avg_d1s) {
+      while (my ($it, $d1) = each @$w_avg_d1s) {
          printf("%3d %7.5f  ", $it, $d1);
       }
 
- print "  ", compare_allT_estimates($Topology_chain_data_w, $w_avg_d1s), "\n";
-     
-
-     
-
+      print "  ", compare_allT_estimates($Topology_chain_data_w, $w_avg_d1s), "\n";
 
       # get next analysis gen:
       $end_gen = min(int($output_factor*$end_gen) + $sample_spacing, $last_gen);
