@@ -18,17 +18,19 @@ my %number_newick_map  = ();    # %{ $self->{number_newick_map} };
 
 my %number_splits_map = ();
 
-open my $fhxxx, ">", "XXXXX"; 
+#open my $fhxxx, ">", "XXXXX"; 
 
 my $tp_filename = undef;
 my $data_nex_filename = undef;
 my $burn_in = 0.1;
 my $output_factor = 1.4;
+my $n_thin = 1;
 GetOptions(
            'in_file=s' => \$tp_filename, # a .tp file or .otps file 
            'nexus_filename=s' => \$data_nex_filename,
            'burn_in=f' => \$burn_in,
            'output_factor=f' => \$output_factor,
+           'n_thin=i' => \$n_thin,
           );
 
 #my $leaf_count = n_leaves($data_nex_filename);
@@ -247,7 +249,7 @@ for my $aline (@$all_lines) {
    }
 }
 open my $fhtrfj, ">", 'TRFjumps';
-print $fhtrfj analyze_chain_splits($Splits_chain_data_u->{setid_gen_value}, $n_runs, $n_temperatures);
+print $fhtrfj analyze_chain_splits($Splits_chain_data_u->{setid_gen_value}, $n_runs, $n_temperatures, $n_thin);
 
 sub TRF_distance{ # Topological Robinson-Foulds distance
    # $spl1, $spl2 are  ':' separated lists of bit patterns indicating presence/absence of leaves in split (always the odd one)
@@ -715,6 +717,7 @@ sub analyze_chain_splits{
    my $chain_splits = shift;
    my $n_runs = shift;
    my $n_Ts = shift;
+my $n_thin = shift // 1;
    my $outstring = '';
 #print STDERR "Top of analyze_chain_splits. $n_runs  $n_Ts \n";
 #print STDERR "rtw:  ", join(" ", keys %$chain_splits), "\n";
@@ -728,15 +731,16 @@ sub analyze_chain_splits{
          my $prev_splits = $gen_splits->{$sgens[0]};
       #   print $prev_splits, "\n"; exit;
          my $prev_gen = 0;
-         my $generations = $chain_splits->{generations}->[0];
+    #     my $generations = $chain_splits->{generations}->[0];
       #   my @rtw_gens = sort {$a <=> $b} keys
          for my $gen (@sgens) {
         #    print "gen: $gen\n";
+            next if(($gen % $n_thin) != 0);
             if (exists $gen_splits->{$gen}) {
                my $splits = $gen_splits->{$gen};
                #  if(defined $prev_splits[$i_W]){
                my $TRF = TRF_distance($splits, $prev_splits);
-               $outstring .=  "$rtw  " . ($gen - $prev_gen) . "  $TRF\n";
+               $outstring .=  "$rtw  $gen  " . ($gen - $prev_gen) . "  $TRF\n";
                #   }
                $prev_splits = $splits;
                $prev_gen = $gen;
