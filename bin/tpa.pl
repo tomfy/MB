@@ -18,7 +18,7 @@ my %number_newick_map  = ();    # %{ $self->{number_newick_map} };
 
 my %number_splits_map = ();
 
-#open my $fhxxx, ">", "XXXXX"; 
+#open my $fhxxx, ">", "XXXXX";
 
 my $tp_filename = undef;
 my $data_nex_filename = undef;
