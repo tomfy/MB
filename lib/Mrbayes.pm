@@ -24,7 +24,7 @@ sub new {
                             'n_runs'                    => 2,
                             'n_temperatures'            => 3,
                             'n_temperatures_out'        => 3,
-                            'delta_temperature'         => 0.1,
+                            'temperatures_parameter'         => 0.1,
                             'n_swaps'                   => 1,
                             'chunk_size'                => 2000, # $default_chunk_size,
                             'print_freq'                => undef,
@@ -59,6 +59,7 @@ sub new {
 
                             'n_taxa' => undef,
                             'n_alignment_columns' => undef,
+                            'do_topo_and_param_analysis' => 0,
                            };
 
    my $self = bless $default_arguments, $class;
@@ -87,11 +88,12 @@ sub new {
    if (-f $alignment_nex_filename) {
       open my $fh_align, "<", "$alignment_nex_filename";
       while (<$fh_align>) {
-         if (/^\s*dimensions ntax=(\d+) nchar=(\d+);/) {
+         my $lc_line = lc $_;
+         if ($lc_line =~ /^\s*dimensions\s+ntax\s*=\s*(\d+)\s+nchar\s*=\s*(\d+);/) {
             $self->{n_taxa}              = $1;
             $self->{n_alignment_columns} = $2;
             last;
-         } elsif (/^\s*matrix/) {
+         } elsif ($lc_line =~ /^\s*matrix/) {
             die "In nex file, ntax and nchar not found!\n";
          }
       }
@@ -109,7 +111,7 @@ sub new {
    my $burnin_fraction   = $self->{burnin_fraction};
    my $n_temperatures    = $self->{n_temperatures};
    my $n_temperatures_out = $self->{n_temperatures_out};
-   my $delta_temperature = $self->{delta_temperature};
+   my $temperatures_param = $self->{temperatures_parameter};
    my $n_swaps           = $self->{n_swaps};
    my $sample_freq       = $self->{sample_freq};
    my $print_freq        = $self->{print_freq};
@@ -145,7 +147,7 @@ sub new {
    $self->{topology_count}  = {}; # total counts (i.e. summed over runs) of topologies
    $self->{chain_data} = {}; # keys are param names, values ChainData objects
 
-   print "# Delta temperature: $delta_temperature.\n";
+   print "# Temperatures parameter: $temperatures_param.\n";
    my $middle_piece =
      "execute $alignment_nex_filename;\n"
        . "set precision=6;\n"
@@ -163,10 +165,11 @@ sub new {
                            . "mcmcp nchainsout=$n_temperatures_out;\n"
                              . "mcmcp nswaps=$n_swaps;\n"
                                . "mcmcp nruns=$n_runs;\n"
-                                 . "mcmcp temp=$delta_temperature;\n"
+                                 . "mcmcp temp=$temperatures_param;\n"
                                    . "mcmcp samplefreq=$sample_freq;\n"
                                      . "mcmcp printfreq=$print_freq;\n"
-                                       . "mcmcp checkpoint=yes checkfreq=$chunk_size;\n";
+                                       . "mcmcp checkpoint=yes checkfreq=$chunk_size;\n"
+                                         . "mcmcp autotune=no;\n";
 
    my $end_piece = "sump;\n" . "sumt;\n" . "end;\n";
    $self->{mrbayes_block1} =
@@ -279,14 +282,15 @@ sub run {
       # Analyze the chunk:
       $self->mc3swap($mb_output_string); # mcmcmc swap
 
+      if($self->{do_topo_and_param_analysis}){
       $self->topo_analyze($prev_chunk_ngen); # topologies & splits
       $self->param_analyze($prev_chunk_ngen);
 
       $self->tp_analyze(undef, $prev_chunk_ngen);
- 
+   }
       #****************************************************************
 
-      ( $converged, $conv_string ) = $self->test_convergence($file_basename);
+      ( $converged, $conv_string ) = (0, 'no convergence string'); # $self->test_convergence($file_basename);
       $converge_count += $converged;
       print $fhc "$ngen  $conv_string  $converge_count\n";
       printf( "%5i  %3i\n", $ngen, 
